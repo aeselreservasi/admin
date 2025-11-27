@@ -1,0 +1,74 @@
+    body {
+      background-color: #f7f4f3;
+      font-family: "Segoe UI", Arial, sans-serif;
+      padding: 20px;
+    }
+
+    .wrapper {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .card {
+      border-top: 5px solid #b22e15;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    }
+
+    .card-header {
+      background-color: #b22e15;
+      color: #fff;
+      border-top-left-radius: 10px;
+      border-top-right-radius: 10px;
+    }
+
+    .badge-jenis {
+      background-color: #b22e15;
+    }
+
+    .btn-download {
+      background-color: #b22e15;
+      border-color: #b22e15;
+      color: #fff;
+    }
+
+    .btn-download:hover {
+      background-color: #961f0b;
+      border-color: #961f0b;
+      color: #fff;
+    }
+
+        .btn-download-all {
+      background-color: #fff;
+      color: #b22e15;
+      border-color: #fff;
+      font-weight: 600;
+    }
+
+    .btn-download-all:hover {
+      background-color: #fbe7e2;
+      border-color: #fbe7e2;
+      color: #961f0b;
+    }
+
+    table thead {
+      background-color: #f0e2df;
+    }
+
+    .small-text {
+      font-size: 0.85rem;
+      color: #eee;
+    }
+
+    @media (max-width: 768px) {
+      .table-responsive {
+        font-size: 0.85rem;
+      }
+        .card-header h5 {
+        font-size: 1rem;
+      }
+      .btn-download-all {
+        padding: 4px 8px;
+        font-size: 0.8rem;
+      }
+    }
