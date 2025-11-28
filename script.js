@@ -1,9 +1,4 @@
-async function loadData() {
-  const res = await fetch("https://yuwfecfaoouylnzsdlnr.supabase.co/functions/v1/admin");
-  const { data } = await res.json();
-  currentRows = data;
-  applyFilters();
-}
+const FUNCTION_URL = "https://yuwfecfaoouylnzsdlnr.supabase.co/functions/v1/admin";
 
 const statusEl = document.getElementById("status");
 const tableBody = document.querySelector("#data-table tbody");
@@ -31,6 +26,31 @@ const editJamUjian = document.getElementById("edit-jam-ujian");
 
 // Simpan data terakhir yang di-load untuk bisa di-download semua
 let currentRows = [];
+
+// Helper umum panggil function
+async function callFunction(action, payload, method = "POST") {
+  const url = method === "GET" ? `${FUNCTION_URL}?action=${encodeURIComponent(action)}` : `${FUNCTION_URL}?action=${encodeURIComponent(action)}`;
+
+  const options = {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+    },
+  };
+
+  if (method !== "GET" && payload) {
+    options.body = JSON.stringify(payload);
+  }
+
+  const res = await fetch(url, options);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`HTTP ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
+// ====================== FILTER & RENDER ======================
 
 function applyFilters() {
   if (!currentRows || currentRows.length === 0) {
@@ -79,27 +99,36 @@ function formatTanggalIndo(isoDate) {
   return `${tanggal} ${bulan[parseInt(m) - 1]} ${y}`;
 }
 
+// ====================== LOAD DATA ======================
+
 async function loadData() {
-  statusEl.textContent = "Memuat data dari Supabase...";
+  statusEl.textContent = "Memuat data dari server...";
 
-  const { data, error } = await supabaseClient.from("reservasi_ujian").select("*").order("created_at", { ascending: false });
+  try {
+    const { data, error } = await callFunction("list", null, "GET");
 
-  if (error) {
-    console.error("Supabase select error:", error);
-    statusEl.textContent = "Gagal memuat data dari Supabase. Cek console untuk detail error.";
-    return;
+    if (error) {
+      console.error("Function list error:", error);
+      statusEl.textContent = "Gagal memuat data dari server. Cek console untuk detail error.";
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      statusEl.textContent = "Belum ada data.";
+      currentRows = [];
+      tableBody.innerHTML = "";
+      return;
+    }
+
+    currentRows = data;
+    applyFilters();
+  } catch (err) {
+    console.error("loadData error:", err);
+    statusEl.textContent = "Terjadi kesalahan saat memuat data. Cek console untuk detail error.";
   }
-
-  if (!data || data.length === 0) {
-    statusEl.textContent = "Belum ada data.";
-    currentRows = [];
-    tableBody.innerHTML = "";
-    return;
-  }
-
-  currentRows = data;
-  applyFilters();
 }
+
+// ====================== RENDER TABLE ======================
 
 function renderTable(rows) {
   tableBody.innerHTML = "";
@@ -109,21 +138,17 @@ function renderTable(rows) {
     const jenisText = `${row.jenis_ujian_nama}`;
 
     // mapping status ke badge
-    const rawStatus = (row.status_pembayaran || "BELUM BAYAR").replace(/_/g, " "); // ganti underscore jadi spasi
+    const rawStatus = (row.status_pembayaran || "BELUM BAYAR").replace(/_/g, " ");
     const status = rawStatus.toUpperCase();
 
     let badgeClass = "bg-secondary";
 
-    // Lunas
     if (status === "SETTLEMENT") {
       badgeClass = "bg-success";
-      // Belum Bayar → merah
     } else if (status === "BELUM BAYAR") {
       badgeClass = "bg-danger";
-      // Pending → kuning
     } else if (status === "PENDING") {
       badgeClass = "bg-warning text-dark";
-      // Cancel / error → merah
     } else if (status === "CANCEL" || status === "EXPIRE" || status === "DENY") {
       badgeClass = "bg-danger";
     }
@@ -171,7 +196,8 @@ function renderTable(rows) {
   });
 }
 
-// Builder JSON untuk satu row (dipakai per-row & untuk ZIP)
+// ====================== DOWNLOAD JSON / ZIP ======================
+
 function buildJsonFromRow(row) {
   return {
     "Nama Lengkap": row.nama_lengkap || "",
@@ -187,7 +213,6 @@ function buildJsonFromRow(row) {
   };
 }
 
-// Download satu peserta (file JSON tunggal)
 function downloadJsonForRow(row) {
   const payload = buildJsonFromRow(row);
   const jsonString = JSON.stringify(payload, null, 2);
@@ -208,7 +233,6 @@ function downloadJsonForRow(row) {
   URL.revokeObjectURL(url);
 }
 
-// Download semua dalam 1 ZIP (tiap peserta 1 file JSON)
 async function downloadAllAsZip() {
   if (!currentRows || currentRows.length === 0) {
     alert("Belum ada data untuk di-download.");
@@ -248,7 +272,8 @@ async function downloadAllAsZip() {
   }
 }
 
-// Buka modal edit & isi data
+// ====================== EDIT (MODAL) ======================
+
 function openEditModal(row) {
   editId.value = row.id;
   editNama.value = row.nama_lengkap || "";
@@ -265,7 +290,6 @@ function openEditModal(row) {
   editModal.show();
 }
 
-// Simpan perubahan dari modal
 editForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
@@ -297,11 +321,11 @@ editForm.addEventListener("submit", async (e) => {
   const tglLahirFormatted = tglLahirIso ? formatTanggalIndo(tglLahirIso) : null;
   const tanggalUjianFormatted = formatTanggalIndo(tanggalUjianIso);
 
-  statusEl.textContent = "Menyimpan perubahan ke Supabase...";
+  statusEl.textContent = "Menyimpan perubahan ke server...";
 
-  const { data, error } = await supabaseClient
-    .from("reservasi_ujian")
-    .update({
+  try {
+    const payload = {
+      id: Number(id),
       nama_lengkap: nama,
       nomor_telepon: telepon,
       jenis_ujian_kode: kodeUjian,
@@ -315,41 +339,54 @@ editForm.addEventListener("submit", async (e) => {
       tanggal_ujian_iso: tanggalUjianIso,
       tanggal_ujian: tanggalUjianFormatted,
       jam_ujian: jamUjian,
-    })
-    .eq("id", id);
+    };
 
-  if (error) {
-    console.error("Supabase update error:", error);
+    const { error } = await callFunction("update", payload, "POST");
+    if (error) {
+      console.error("Update error:", error);
+      alert("Gagal menyimpan perubahan. Cek console untuk detail error.");
+      statusEl.textContent = "Gagal menyimpan perubahan.";
+      return;
+    }
+
+    editModal.hide();
+    statusEl.textContent = "Perubahan berhasil disimpan.";
+    loadData();
+  } catch (err) {
+    console.error("Update error:", err);
     alert("Gagal menyimpan perubahan. Cek console untuk detail error.");
     statusEl.textContent = "Gagal menyimpan perubahan.";
-    return;
   }
-
-  editModal.hide();
-  statusEl.textContent = "Perubahan berhasil disimpan.";
-  loadData();
 });
 
-// Hapus row
+// ====================== DELETE & SET LUNAS ======================
+
 async function deleteRow(row) {
   const nama = row.nama_lengkap || "(tanpa nama)";
   const konfirmasi = confirm(`Yakin ingin menghapus data:\n${nama}?`);
   if (!konfirmasi) return;
 
-  statusEl.textContent = "Menghapus data dari Supabase...";
+  statusEl.textContent = "Menghapus data dari server...";
 
-  const { error } = await supabaseClient.from("reservasi_ujian").delete().eq("id", row.id);
+  try {
+    const payload = { id: row.id };
+    const { error } = await callFunction("delete", payload, "POST");
+    if (error) {
+      console.error("Delete error:", error);
+      alert("Gagal menghapus data. Cek console untuk detail error.");
+      statusEl.textContent = "Gagal menghapus data.";
+      return;
+    }
 
-  if (error) {
-    console.error("Supabase delete error:", error);
+    statusEl.textContent = "Data berhasil dihapus.";
+    loadData();
+  } catch (err) {
+    console.error("Delete error:", err);
     alert("Gagal menghapus data. Cek console untuk detail error.");
     statusEl.textContent = "Gagal menghapus data.";
-    return;
   }
-
-  statusEl.textContent = "Data berhasil dihapus.";
-  loadData();
 }
+
 async function setStatusLunas(row) {
   const nama = row.nama_lengkap || "(tanpa nama)";
   const invoice = row.order_id || "-";
@@ -359,32 +396,37 @@ async function setStatusLunas(row) {
 
   statusEl.textContent = "Mengubah status pembayaran menjadi LUNAS...";
 
-  const { error } = await supabaseClient.from("reservasi_ujian").update({ status_pembayaran: "SETTLEMENT" }).eq("id", row.id);
+  try {
+    const payload = { id: row.id };
+    const { error } = await callFunction("set_lunas", payload, "POST");
+    if (error) {
+      console.error("Set lunas error:", error);
+      alert("Gagal mengubah status pembayaran. Cek console untuk detail error.");
+      statusEl.textContent = "Gagal mengubah status pembayaran.";
+      return;
+    }
 
-  if (error) {
-    console.error("Supabase update status error:", error);
+    statusEl.textContent = "Status pembayaran berhasil diubah menjadi LUNAS.";
+    loadData();
+  } catch (err) {
+    console.error("Set lunas error:", err);
     alert("Gagal mengubah status pembayaran. Cek console untuk detail error.");
     statusEl.textContent = "Gagal mengubah status pembayaran.";
-    return;
   }
-
-  statusEl.textContent = "Status pembayaran berhasil diubah menjadi LUNAS.";
-  loadData(); // refresh tabel
 }
+
+// ====================== WHATSAPP ======================
 
 function normalizePhoneForWa(phone) {
   if (!phone) return null;
-  let p = phone.replace(/\D/g, ""); // buang semua non digit
+  let p = phone.replace(/\D/g, "");
 
-  // kalau mulai dengan 0 → jadikan 62
   if (p.startsWith("0")) {
     p = "62" + p.slice(1);
   } else if (p.startsWith("8")) {
-    // user kadang nulis 895... tanpa 0
     p = "62" + p;
   }
 
-  // kalau nggak mulai dengan 62 di titik ini, kita anggap invalid
   if (!p.startsWith("62")) return null;
 
   return p;
@@ -397,9 +439,8 @@ function chatPeserta(row) {
     return;
   }
 
-  const status = (row.status_pembayaran || "BELUM BAYAR").toUpperCase();
+  const status = (row.status_pembayaran || "BELUM BAYAR").replace(/_/g, " ").toUpperCase();
 
-  // Opsional: warning kalau belum SETTLEMENT
   if (status !== "SETTLEMENT") {
     const ok = confirm(`Status pembayaran di sistem saat ini: ${status}.\n` + `Biasanya pesan LUNAS hanya dikirim jika status sudah SETTLEMENT.\n\n` + `Tetap kirim pesan LUNAS ke peserta?`);
     if (!ok) return;
@@ -439,13 +480,14 @@ function chatPeserta(row) {
     `Jam Ujian    : ${jam}\n` +
     `--------------------------------\n` +
     `${extraInfo}` +
-    // `Silakan hadir sesuai jadwal ujian yang tertera.\n` +
     `Terima kasih.\n` +
     `- Admin Aesel Reservasi -`;
 
   const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(pesan)}`;
   window.open(waUrl, "_blank");
 }
+
+// ====================== INIT ======================
 
 if (filterStatusSelect) {
   filterStatusSelect.addEventListener("change", applyFilters);
