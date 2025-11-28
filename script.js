@@ -461,7 +461,8 @@ function chatPeserta(row) {
     `Tanggal Ujian: ${tanggal}\n` +
     `Jam Ujian    : ${jam}\n` +
     `--------------------------------\n` +
-    `${extraInfo}`\n` +
+    `${extraInfo}` +
+    // `Silakan hadir sesuai jadwal ujian yang tertera.\n` +
     `Terima kasih.\n` +
     `- Admin Aesel Reservasi -`;
 
