@@ -1,8 +1,9 @@
-const SUPABASE_URL = "https://yuwfecfaoouylnzsdlnr.supabase.co";
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1d2ZlY2Zhb291eWxuenNkbG5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQwNDk1NDksImV4cCI6MjA3OTYyNTU0OX0.L1qJlQqHQyQskTk04GSg7CowfaG4NmVhaGc02htONoY";
-
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+async function loadData() {
+  const res = await fetch("https://yuwfecfaoouylnzsdlnr.supabase.co/functions/v1/admin");
+  const { data } = await res.json();
+  currentRows = data;
+  applyFilters();
+}
 
 const statusEl = document.getElementById("status");
 const tableBody = document.querySelector("#data-table tbody");
